@@ -25,135 +25,122 @@ if(!file.exists("Dataset.zip")) {
 
 # Read in the train data and perform the most basic checks to see that data looks ok
 trainData <- read.table("./UCI HAR Dataset/train/X_train.txt") 
-trainData_tbl <- tbl_df(trainData) # fast look on data, seems ok
-rm("trainData")
-# trainData_tbl
-# Source: local data frame [7,352 x 561]
-# print(sum(is.na(trainData_tbl)))
-# glimpse(trainData_tbl)
+trainData <- tbl_df(trainData) # Source: local data frame [7,352 x 561]
 
-# Read in the test data and perform the most basic checks to see that data looks ok
+# Read in the test data
 testData <- read.table("./UCI HAR Dataset/test/X_test.txt")
-testData_tbl <- tbl_df(testData)
-rm("testData")
-# testData_tbl
-# Source: local data frame [2,947 x 561]
-# print(sum(is.na(testData_tbl)))
-# glimpse(testData_tbl)
+testData <- tbl_df(testData) # Source: local data frame [2,947 x 561]
 
 # Read in train label
 trainLabel <- read.table("./UCI HAR Dataset/train/y_train.txt")
-trainLabel_tbl <- tbl_df(trainLabel)
-dim(trainLabel_tbl) # [1] 7352    1
-rm(trainLabel)
-table(trainLabel_tbl)
+trainLabel <- tbl_df(trainLabel) # [1] 7352    1
 
 # Read in test label
 testLabel <- read.table("./UCI HAR Dataset/test/y_test.txt") 
-testLabel_tbl <- tbl_df(testLabel)
-rm(testLabel)
-dim(testLabel_tbl) # [1] 2947    1
-glimpse(testLabel_tbl)
-arrange(testLabel_tbl, V1) %>%
-  distinct()
-#### summarize(testLabel_tbl,V1, length) Incorrect code, check up how to do it in plyr!
-table(testLabel_tbl)
+testLabel <- tbl_df(testLabel) # [1] 2947    1
 
 # Read in train subject
 trainSubject <- read.table("./UCI HAR Dataset/train/subject_train.txt")
-trainSubject_tbl <- tbl_df(trainSubject)
-rm(trainSubject)
-trainSubject_tbl
-glimpse(trainSubject_tbl)
-nrow(trainSubject_tbl) # 7352
-table(trainSubject_tbl)
+trainSubject <- tbl_df(trainSubject) # 7352
 
 # Read in test subject
 testSubject <- read.table("./UCI HAR Dataset/test/subject_test.txt")
-testSubject_tbl <- tbl_df(testSubject)
-rm(testSubject)
-nrow(testSubject_tbl) # 2947
-table(testSubject_tbl)
+testSubject <- tbl_df(testSubject) # 2947
 
+# Read in features
 features <- read.table("./UCI HAR Dataset/features.txt")
-features_tbl <- tbl_df(features)
-rm(features)
+features <- tbl_df(features)
 
-# put everything together into one big matrix
-# Just in case there is a problem with test/traing partion of data I will add an extra column with 
-# labeled test and training
-testData_tbl <- mutate(testData_tbl , partition = "test")
-trainData_tbl <- mutate(trainData_tbl , partition = "train")
-features_tbl <- mutate(features_tbl, V3 = paste0(V1, V2))
-colnames <- features_tbl["V3"][[1]]
-colnames <- c(colnames, "562mypartion")
 
-data <- rbind(testData_tbl, trainData_tbl)
+# Add a column with test/traing labels to easier localize origin of data
+# in case of any problems
+testData <- mutate(testData , partition = "test")
+trainData <- mutate(trainData , partition = "train")
+
+# rownumbers + features combined (to easier localize origin if any confusion later on)
+features <- mutate(features, V3 = paste0(V1, V2)) 
+colnames <- features["V3"][[1]]
+colnames <- c(colnames, "562mypartion") # dummy variable with train/test labels
+
+# merge train and test data
+data <- rbind(testData, trainData)
 names(data) <- colnames
 
-
-subject <- rbind(testSubject_tbl, trainSubject_tbl)
+# merge train and test subject
+subject <- rbind(testSubject, trainSubject)
 names(subject) <- "subject"
-label <- rbind(testLabel_tbl, trainLabel_tbl)
-# it would be easiest to change labels to real names already here but postpones it to step 3
-names(label) <- "label"
-temp <- cbind(subject = subject, label = label, data )
-temp_tbl <- tbl_df(temp)
 
-# clean up
+# merge train and test label
+label <- rbind(testLabel, trainLabel)
+# Easiest to change labels to real names here 
+# but postpones it to step 3 to follow instructions
+names(label) <- "label"
+
+# combine all data to a large dataframe
+df <- cbind(subject = subject, label = label, data )
+df <- tbl_df(df) # Source: local data frame [10,299 x 564]
+
+# clean up so we only keep our merged data in df
 current_var <- ls()
-current_var <- current_var[current_var!="temp_tbl"]
+current_var <- current_var[current_var!="df"]
 rm(list = current_var)
 
 
 # 2/ Extracts only the measurements on the mean and standard deviation for each measurement. 
-# lets look at the variable names
-names(temp_tbl)
-# let's remove all variables not containing "mean()" or "std()" except "subject", "label", "562mypartion"
 
-ind1 <- grep(pattern = "mean\\(",x = names(temp_tbl))
-ind2 <- grep(pattern = "std\\(",x = names(temp_tbl))
+# find indices containing "mean(" or "std("
+ind1 <- grep(pattern = "mean\\(", x = names(df))
+ind2 <- grep(pattern = "std\\(", x = names(df))
+# keep label subject and our dummy variable
 ind3 <- c(1,2,564)
 keep <- c(ind3, ind1, ind2)
-keep <- unique(keep)
-data_tbl <- temp_tbl[,keep]
+keep <- unique(keep) # there should be no duplicated indices keep == unique(keep)
+df_red <- df[,keep] # keep reduced dataset, Source: local data frame [10,299 x 69]
 
 # 3/ Uses descriptive activity names to name the activities in the data set
+
+# We have few activities so easiest way is to create a lookuptable 
+# (if we instead had very many different activities we would need 
+# to read in from file and do some parsing and programatically create a lookuptable or other approaches  )
 lut <- c( "1" = "WALKING", "2" = "WALKING_UPSTAIRS", "3" = "WALKING_DOWNSTAIRS", 
           "4" = "SITTING", "5" = "STANDING", "6" = "LAYING")
 
-label <-data_tbl$label
+label <-df_red$label
 label2 <- lut[label]
-data_tbl$label <- label2
+df_red$label <- label2
 
 
 # 4/ Appropriately labels the data set with descriptive variable names. 
-glimpse(data_tbl)
-# data already have descriptive names, however, what in step 3 is labeled "activity" is "label" 
-# in my table so lets change that
-data_tbl <- rename(data_tbl, activity = label)
-# varnames also starts with the original column number
-# this can be important later on so I don't remove them 
-#(in case there is some confusion about which variables are used )
-# however, to remove them later we can use the commented out code below
+glimpse(df_red) 
+# data already have descriptive names added from the feature dataframe in step 1,
+# however, what in step 3 is labeled "activity" is here labeled "label" 
+# so lets change that
+df_red <- rename(df_red, activity = label)
+
+# variable names also starts with the original column number, in case we made an error in the selection
+# of variables in step 2 (and to control that we have extracted the correct variables)
+# we will keep these numbers until the end (remove when presenting the final data)
+# The commented out line below will remove these rownumbers from the variable name
 # names(data_tbl) <- gsub("^\\d+","",names(data_tbl))
-
-
 
 # 5/ From the data set in step 4, creates a second, independent tidy data set with the average of 
 # each variable for each activity and each subject.
 
 
-data_Summary <- data_tbl %>%
+data_Summary <- df_red %>% 
+  select(-c(`562mypartion`)) %>% # remove the dummy variable
   group_by(subject, activity) %>%
-  summarise_each(funs(mean)) %>%
-  select(-c(`562mypartion`))
+  summarise_each(funs(mean)) 
+  
 
-names(data_Summary) <- gsub("^\\d+","",names(data_Summary))
+names(data_Summary) <- gsub("^\\d+","",names(data_Summary)) # remove rownumbers from variable names
 
+# clean up so we only keep df_red and data_Summary
+current_var <- ls()
+current_var <- current_var[!(current_var %in% c("df_red", "data_Summary"))]
+#current_var <- current_var[current_var!="df"]
+rm(list = current_var)
 
-
-
-
-data_Summary
+# write out data to file 
+write.table(x = data_Summary, file = "data_summary.txt", row.names = FALSE) 
 
