@@ -1,3 +1,6 @@
+library(dplyr)
+library(tidyr)
+
 # 
 # Some description of data : 
 #   http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones
@@ -7,7 +10,8 @@
 # Six recorded activities
 # WALKING, WALKING_UPSTAIRS, WALKING_DOWNSTAIRS, SITTING, STANDING, LAYING
 
-# where 70% of the volunteers was selected for generating the training data and 30% the test data
+# where 70% of the volunteers was selected for generating the training data and 30% 
+# the test data
 
 if(!file.exists("Dataset.zip")) { 
   url <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
@@ -106,15 +110,7 @@ rm(list = current_var)
 # lets look at the variable names
 names(temp_tbl)
 # let's remove all variables not containing "mean()" or "std()" except "subject", "label", "562mypartion"
-# ind1 <- grep(pattern = "mean()",x = names(temp_tbl))
-# ind2 <- grep(pattern = "std()",x = names(temp_tbl))
-# ind3 <- c(1,2,564)
-# keep <- c(ind3, ind1, ind2)
-# keep <- unique(keep)
-# data_tbl <- temp_tbl[,keep]
-# check if data looks ok
-#glimpse(data_tbl)
-# Oooups.. let's start over
+
 ind1 <- grep(pattern = "mean\\(",x = names(temp_tbl))
 ind2 <- grep(pattern = "std\\(",x = names(temp_tbl))
 ind3 <- c(1,2,564)
@@ -127,10 +123,9 @@ lut <- c( "1" = "WALKING", "2" = "WALKING_UPSTAIRS", "3" = "WALKING_DOWNSTAIRS",
           "4" = "SITTING", "5" = "STANDING", "6" = "LAYING")
 
 label <-data_tbl$label
-#label <-data_tbl$activity
 label2 <- lut[label]
 data_tbl$label <- label2
-#data_tbl$activity <- label2
+
 
 # 4/ Appropriately labels the data set with descriptive variable names. 
 glimpse(data_tbl)
@@ -140,6 +135,8 @@ data_tbl <- rename(data_tbl, activity = label)
 # varnames also starts with the original column number
 # this can be important later on so I don't remove them 
 #(in case there is some confusion about which variables are used )
+# however, to remove them later we can use the commented out code below
+# names(data_tbl) <- gsub("^\\d+","",names(data_tbl))
 
 
 
@@ -147,5 +144,16 @@ data_tbl <- rename(data_tbl, activity = label)
 # each variable for each activity and each subject.
 
 
+data_Summary <- data_tbl %>%
+  group_by(subject, activity) %>%
+  summarise_each(funs(mean)) %>%
+  select(-c(`562mypartion`))
 
+names(data_Summary) <- gsub("^\\d+","",names(data_Summary))
+
+
+
+
+
+data_Summary
 
